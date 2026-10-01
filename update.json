@@ -1,8 +1,24 @@
 {
-  "schemaVersion": 1,
-  "runtimeVersion": "2.1.4",
-  "minCoreVersion": "1.0.2",
-  "runtimeUrl": "https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/main/runtime.js",
-  "runtimeCommit": "8d3d9a85c7e51ae9df945e90b4ea2cc7675d7a38",
-  "notes": "Core 1.0.2: canlı güncelleme keşfi GitHub API üzerinden yapılır; runtime sürümü değişmez commit adresinden indirilir."
+  "schemaVersion":1,
+  "runtimeVersion":"2.2.0",
+  "minCoreVersion":"1.0.3",
+  "runtimeUrl":"https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/main/runtime.js",
+  "runtimeCommit":"4725020aeb9c3ba9968ec068476080dd284d9d04",
+  "title":"TALHA RUNNER 2.2.0",
+  "summary":"Yeni bildirim ve güvenli güncelleme deneyimi hazır.",
+  "notes":[
+    "Yeni sürüm geldiğinde rahatsız etmeyen zil bildirimi gösterilir.",
+    "Bildirim bir kez okununca kırmızı işaret söner; yeni sürümde yeniden yanar.",
+    "Sürüm detayları ve değişiklik notları güncellemeden önce görüntülenebilir.",
+    "İstenmeyen bir sürüm atlanabilir; sonraki sürüm çıktığında bildirim yeniden gelir.",
+    "Önceki runtime sürümüne geri dönüş desteği eklendi.",
+    "Bozuk güncellemede otomatik rollback korunur.",
+    "Güncelleme keşfi GitHub API üzerinden, runtime indirmesi sabit commit üzerinden yapılır.",
+    "İnternet yokken otomatik kontrol sessizce başarısız olur ve Runner çalışmaya devam eder.",
+    "Panel düzeni 260x300 minimum boyutta temel kontroller görünür kalacak şekilde sıkılaştırıldı."
+  ],
+  "history":[
+    {"version":"2.1.4","title":"Canlı güncelleme testi","notes":["CCX kurulumundan runtime güncellemesi doğrulandı."]},
+    {"version":"2.1.3","title":"Araç çubuğu görünürlüğü","notes":["Kaydet, Favoriler, Geçmiş ve Güncelle düğmeleri ayrı renklerle işaretlendi."]}
+  ]
 }
