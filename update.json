@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "runtimeVersion": "2.1.1",
+  "runtimeVersion": "2.1.2",
   "minCoreVersion": "1.0.1",
   "runtimeUrl": "https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/main/runtime.js",
-  "notes": "İlk gerçek panel içi güncelleme testi: yerleşik 2.1.0 runtime'dan uzaktaki 2.1.1 runtime'a geçiş."
+  "notes": "Panel UX testi: alt araçlar tek satırda ve daha kompakt. Canlı güncelleme mekanizmasının ikinci gerçek testi."
 }
