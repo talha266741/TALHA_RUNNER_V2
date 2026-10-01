@@ -7,24 +7,19 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
     const FAVORITES_KEY = "talhaRunnerV2Favorites";
     let history = [];
     let listeners = [];
-
     function on(el, event, handler) { if (!el) return; el.addEventListener(event, handler); listeners.push([el, event, handler]); }
     function initialize() {
         const codeInput = document.getElementById("codeInput"), runButton = document.getElementById("runButton"), clearButton = document.getElementById("clearButton"), clearAfterRun = document.getElementById("clearAfterRun"), statusText = document.getElementById("statusText"), historyButton = document.getElementById("historyButton"), saveFavoriteButton = document.getElementById("saveFavoriteButton"), favoritesButton = document.getElementById("favoritesButton"), updateButton = document.getElementById("updateButton"), versionText = document.getElementById("versionText"), updateStatus = document.getElementById("updateStatus");
         if (!codeInput || !runButton) throw new Error("Runner arayüzü bulunamadı");
         if (versionText) versionText.textContent = "V2 • " + (ctx.runtimeVersion || "yerleşik");
         if (updateStatus) updateStatus.textContent = ctx.runtimeOrigin === "cache" ? "● Güncel runtime" : "● Yerleşik runtime";
-
         const bottom = document.querySelector(".bottom");
         if (bottom) { bottom.style.flexDirection = "row"; bottom.style.flexWrap = "nowrap"; bottom.style.gap = "6px"; }
-        [saveFavoriteButton, favoritesButton, historyButton, updateButton].forEach(function (button) {
-            if (button) { button.style.flex = "1 1 0"; button.style.width = "auto"; button.style.minWidth = "0"; button.style.padding = "0 4px"; button.style.fontSize = "10px"; }
-        });
+        [saveFavoriteButton, favoritesButton, historyButton, updateButton].forEach(function (button) { if (button) { button.style.flex = "1 1 0"; button.style.width = "auto"; button.style.minWidth = "0"; button.style.padding = "0 4px"; button.style.fontSize = "10px"; } });
         if (saveFavoriteButton) { saveFavoriteButton.textContent = "★ Kaydet"; saveFavoriteButton.style.backgroundColor = "#66511f"; }
         if (favoritesButton) { favoritesButton.textContent = "★ Favoriler"; favoritesButton.style.backgroundColor = "#244f67"; }
         if (historyButton) historyButton.style.backgroundColor = "#5b365f";
-        if (updateButton) updateButton.style.backgroundColor = "#285b3b";
-
+        if (updateButton) { updateButton.style.backgroundColor = "#285b3b"; updateButton.textContent = "Güncelle ↻"; }
         function setStatus(message) { if (statusText) statusText.textContent = message; }
         function addToHistory(code) { if (!code) return; if (history.length > 0 && history[0] === code) return; history.unshift(code); if (history.length > MAX_HISTORY) history.pop(); }
         function restoreInDesignFocus() { try { if (app.activeWindow && app.activeWindow.activate) app.activeWindow.activate(); } catch (e) {} }
