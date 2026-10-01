@@ -1,280 +1,176 @@
-const { entrypoints, shell } = require("uxp");
+const { entrypoints } = require("uxp");
 const { app, ScriptLanguage, UndoModes } = require("indesign");
 
-const MAX_HISTORY = 20;
-const FAVORITES_KEY = "talhaRunnerV2Favorites";
-const RELEASES_URL = "https://github.com/talha266741/TALHA_RUNNER_V2/releases";
+const CORE_VERSION = "1.0.0";
+const BUNDLED_RUNTIME_VERSION = "2.1.0";
+const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/main/update.json";
+const CACHE_SOURCE_KEY = "talhaRunnerRuntimeSource";
+const CACHE_VERSION_KEY = "talhaRunnerRuntimeVersion";
+const PREVIOUS_SOURCE_KEY = "talhaRunnerRuntimePreviousSource";
+const PREVIOUS_VERSION_KEY = "talhaRunnerRuntimePreviousVersion";
 
-let history = [];
-let panelRoot = null;
+const bundledRuntimeFactory = require("./runtime.js");
+let activeRuntime = null;
+let panelVisible = false;
+
+function compareVersions(a, b) {
+    const aa = String(a || "0").split(".").map(Number);
+    const bb = String(b || "0").split(".").map(Number);
+    const length = Math.max(aa.length, bb.length);
+    for (let i = 0; i < length; i++) {
+        const av = Number.isFinite(aa[i]) ? aa[i] : 0;
+        const bv = Number.isFinite(bb[i]) ? bb[i] : 0;
+        if (av > bv) return 1;
+        if (av < bv) return -1;
+    }
+    return 0;
+}
+
+function compileRuntime(source) {
+    if (!source || !String(source).trim()) throw new Error("Runtime içeriği boş");
+    const moduleObject = { exports: {} };
+    const exportsObject = moduleObject.exports;
+    const loader = new Function("module", "exports", String(source));
+    loader(moduleObject, exportsObject);
+    if (typeof moduleObject.exports !== "function") throw new Error("Runtime geçerli bir factory dışa aktarmıyor");
+    return moduleObject.exports;
+}
+
+function getCachedRuntime() {
+    try {
+        const source = localStorage.getItem(CACHE_SOURCE_KEY);
+        const version = localStorage.getItem(CACHE_VERSION_KEY);
+        if (!source || !version) return null;
+        return { factory: compileRuntime(source), source: source, version: version, origin: "cache" };
+    } catch (error) {
+        console.error("Cached runtime yüklenemedi; yerleşik runtime kullanılacak.", error);
+        return null;
+    }
+}
+
+function buildContext(runtimeVersion, runtimeSource) {
+    return {
+        app: app,
+        ScriptLanguage: ScriptLanguage,
+        UndoModes: UndoModes,
+        runtimeVersion: runtimeVersion,
+        runtimeSource: runtimeSource,
+        coreVersion: CORE_VERSION,
+        core: {
+            checkAndInstallUpdate: checkAndInstallUpdate,
+            getCoreVersion: function () { return CORE_VERSION; },
+            getRuntimeVersion: function () { return getCurrentRuntimeVersion(); }
+        }
+    };
+}
+
+function getCurrentRuntimeVersion() {
+    try {
+        return localStorage.getItem(CACHE_VERSION_KEY) || BUNDLED_RUNTIME_VERSION;
+    } catch (e) {
+        return BUNDLED_RUNTIME_VERSION;
+    }
+}
+
+function activateRuntime(factory, version, origin) {
+    if (activeRuntime && typeof activeRuntime.dispose === "function") {
+        try { activeRuntime.dispose(); } catch (e) { console.error(e); }
+    }
+    const instance = factory(buildContext(version, origin));
+    if (!instance || typeof instance.initialize !== "function") throw new Error("Runtime initialize() sağlamıyor");
+    instance.initialize();
+    activeRuntime = instance;
+}
+
+function activateBestAvailableRuntime() {
+    const cached = getCachedRuntime();
+    if (cached) {
+        try {
+            activateRuntime(cached.factory, cached.version, "cache");
+            return;
+        } catch (error) {
+            console.error("Cached runtime başlatılamadı; yerleşik runtime'a dönülüyor.", error);
+        }
+    }
+    activateRuntime(bundledRuntimeFactory, BUNDLED_RUNTIME_VERSION, "bundled");
+}
+
+async function fetchText(url) {
+    const separator = url.indexOf("?") >= 0 ? "&" : "?";
+    const response = await fetch(url + separator + "t=" + Date.now(), { cache: "no-store" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return await response.text();
+}
+
+async function checkAndInstallUpdate() {
+    const manifestText = await fetchText(UPDATE_MANIFEST_URL);
+    let manifest;
+    try { manifest = JSON.parse(manifestText); } catch (e) { throw new Error("update.json okunamadı"); }
+
+    if (!manifest || manifest.schemaVersion !== 1) throw new Error("Desteklenmeyen update manifesti");
+    if (!manifest.runtimeVersion || !manifest.runtimeUrl) throw new Error("Güncelleme bilgisi eksik");
+    if (manifest.minCoreVersion && compareVersions(CORE_VERSION, manifest.minCoreVersion) < 0) {
+        throw new Error("Bu güncelleme daha yeni bir Core gerektiriyor (" + manifest.minCoreVersion + ")");
+    }
+
+    const currentVersion = getCurrentRuntimeVersion();
+    if (compareVersions(manifest.runtimeVersion, currentVersion) <= 0) {
+        return { updated: false, version: currentVersion, message: "✓ Zaten güncel: " + currentVersion };
+    }
+
+    const candidateSource = await fetchText(manifest.runtimeUrl);
+    const candidateFactory = compileRuntime(candidateSource);
+
+    const oldSource = localStorage.getItem(CACHE_SOURCE_KEY);
+    const oldVersion = localStorage.getItem(CACHE_VERSION_KEY);
+    if (oldSource && oldVersion) {
+        localStorage.setItem(PREVIOUS_SOURCE_KEY, oldSource);
+        localStorage.setItem(PREVIOUS_VERSION_KEY, oldVersion);
+    }
+
+    try {
+        if (panelVisible) activateRuntime(candidateFactory, manifest.runtimeVersion, "cache");
+        localStorage.setItem(CACHE_SOURCE_KEY, candidateSource);
+        localStorage.setItem(CACHE_VERSION_KEY, manifest.runtimeVersion);
+        return { updated: true, version: manifest.runtimeVersion, message: "✓ Güncellendi" };
+    } catch (error) {
+        if (oldSource && oldVersion) {
+            try {
+                localStorage.setItem(CACHE_SOURCE_KEY, oldSource);
+                localStorage.setItem(CACHE_VERSION_KEY, oldVersion);
+                if (panelVisible) activateRuntime(compileRuntime(oldSource), oldVersion, "cache");
+            } catch (rollbackError) { console.error("Rollback başarısız", rollbackError); }
+        } else {
+            try {
+                localStorage.removeItem(CACHE_SOURCE_KEY);
+                localStorage.removeItem(CACHE_VERSION_KEY);
+                if (panelVisible) activateRuntime(bundledRuntimeFactory, BUNDLED_RUNTIME_VERSION, "bundled");
+            } catch (rollbackError) { console.error("Yerleşik runtime'a dönüş başarısız", rollbackError); }
+        }
+        throw error;
+    }
+}
 
 entrypoints.setup({
     commands: {
-        showAlert: function () {
-            alert("Talha Runner V2");
-        }
+        showAlert: function () { alert("Talha Runner V2"); }
     },
     panels: {
         showPanel: {
-            show: function (event) {
-                panelRoot = event && event.node ? event.node : document;
-                initializeRunner();
+            show: function () {
+                panelVisible = true;
+                activateBestAvailableRuntime();
+            },
+            hide: function () {
+                panelVisible = false;
+            },
+            destroy: function () {
+                panelVisible = false;
+                if (activeRuntime && typeof activeRuntime.dispose === "function") {
+                    try { activeRuntime.dispose(); } catch (e) {}
+                }
+                activeRuntime = null;
             }
         }
     }
 });
-
-function initializeRunner() {
-    const codeInput = document.getElementById("codeInput");
-    const runButton = document.getElementById("runButton");
-    const clearButton = document.getElementById("clearButton");
-    const clearAfterRun = document.getElementById("clearAfterRun");
-    const statusText = document.getElementById("statusText");
-    const historyButton = document.getElementById("historyButton");
-    const saveFavoriteButton = document.getElementById("saveFavoriteButton");
-    const favoritesButton = document.getElementById("favoritesButton");
-    const updateButton = document.getElementById("updateButton");
-
-    if (!codeInput || !runButton) return;
-    if (runButton.dataset.runnerReady === "true") return;
-    runButton.dataset.runnerReady = "true";
-
-    function setStatus(message) {
-        if (statusText) statusText.textContent = message;
-    }
-
-    function addToHistory(code) {
-        if (!code) return;
-        if (history.length > 0 && history[0] === code) return;
-        history.unshift(code);
-        if (history.length > MAX_HISTORY) history.pop();
-    }
-
-    function restoreInDesignFocus() {
-        try {
-            if (app.activeWindow && app.activeWindow.activate) app.activeWindow.activate();
-        } catch (e) {}
-    }
-
-    function focusEditor() {
-        try { codeInput.focus(); } catch (e) {}
-    }
-
-    function runCode() {
-        const code = codeInput.value;
-        if (!code || !code.replace(/\s/g, "")) {
-            setStatus("Kod alanı boş");
-            return;
-        }
-
-        setStatus("Çalıştırılıyor...");
-        try {
-            app.doScript(code, ScriptLanguage.JAVASCRIPT, undefined, UndoModes.ENTIRE_SCRIPT, "Talha Runner V2");
-            addToHistory(code);
-            setStatus("✓ Tamamlandı");
-            if (clearAfterRun && clearAfterRun.checked) codeInput.value = "";
-        } catch (error) {
-            let message = "Bilinmeyen hata";
-            try { message = error && error.message ? error.message : String(error); } catch (e) {}
-            setStatus("✕ " + message);
-        } finally {
-            restoreInDesignFocus();
-        }
-    }
-
-    function clearCode() {
-        codeInput.value = "";
-        setStatus("Hazır");
-        focusEditor();
-    }
-
-    function showHistory() {
-        if (history.length === 0) {
-            setStatus("Geçmiş boş");
-            return;
-        }
-
-        let message = "SON ÇALIŞTIRILAN KODLAR\n\n";
-        for (let i = 0; i < history.length; i++) {
-            let preview = history[i].replace(/\r/g, " ").replace(/\n/g, " ");
-            if (preview.length > 60) preview = preview.substring(0, 60) + "...";
-            message += (i + 1) + ". " + preview + "\n";
-        }
-
-        const selection = prompt(message + "\nYüklemek istediğiniz kodun numarasını girin:", "1");
-        if (selection === null) return;
-        const normalized = String(selection).trim();
-        if (!/^\d+$/.test(normalized)) {
-            setStatus("Geçersiz geçmiş seçimi");
-            return;
-        }
-        const index = Number(normalized) - 1;
-        if (index < 0 || index >= history.length) {
-            setStatus("Geçersiz geçmiş seçimi");
-            return;
-        }
-        codeInput.value = history[index];
-        setStatus("Geçmişten editöre yüklendi");
-        focusEditor();
-    }
-
-    function loadFavorites() {
-        try {
-            const raw = localStorage.getItem(FAVORITES_KEY);
-            if (!raw) return [];
-            const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            return [];
-        }
-    }
-
-    function saveFavorites(favorites) {
-        localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-    }
-
-    function saveCurrentFavorite() {
-        const code = codeInput.value;
-        if (!code || !code.replace(/\s/g, "")) {
-            setStatus("Favoriye kaydedilecek kod yok");
-            return;
-        }
-
-        const enteredName = prompt("Favori adı:", "");
-        if (enteredName === null) return;
-        const name = String(enteredName).trim();
-        if (!name) {
-            setStatus("Favori adı boş olamaz");
-            return;
-        }
-
-        const favorites = loadFavorites();
-        let existingIndex = -1;
-        for (let i = 0; i < favorites.length; i++) {
-            if (String(favorites[i].name).toLocaleLowerCase() === name.toLocaleLowerCase()) {
-                existingIndex = i;
-                break;
-            }
-        }
-
-        if (existingIndex >= 0) {
-            const overwrite = confirm("'" + favorites[existingIndex].name + "' zaten var. Üzerine yazılsın mı?");
-            if (!overwrite) {
-                setStatus("Favori değiştirilmedi");
-                return;
-            }
-            favorites[existingIndex] = { name: name, code: code };
-        } else {
-            favorites.push({ name: name, code: code });
-        }
-
-        try {
-            saveFavorites(favorites);
-            setStatus("★ Favoriye kaydedildi: " + name);
-        } catch (e) {
-            setStatus("✕ Favori kaydedilemedi");
-        }
-    }
-
-    function showFavorites() {
-        let favorites = loadFavorites();
-        if (favorites.length === 0) {
-            setStatus("Favoriler boş");
-            return;
-        }
-
-        let message = "FAVORİLER\n\n";
-        for (let i = 0; i < favorites.length; i++) {
-            message += (i + 1) + ". " + favorites[i].name + "\n";
-        }
-        message += "\nNumara = editöre yükle\nR3 = 3. favoriyi yeniden adlandır\nS3 = 3. favoriyi sil";
-
-        const selection = prompt(message, "1");
-        if (selection === null) return;
-        const normalized = String(selection).trim();
-
-        const renameMatch = /^R(\d+)$/i.exec(normalized);
-        if (renameMatch) {
-            const index = Number(renameMatch[1]) - 1;
-            if (index < 0 || index >= favorites.length) {
-                setStatus("Geçersiz favori seçimi");
-                return;
-            }
-            const newNameInput = prompt("Yeni favori adı:", favorites[index].name);
-            if (newNameInput === null) return;
-            const newName = String(newNameInput).trim();
-            if (!newName) {
-                setStatus("Favori adı boş olamaz");
-                return;
-            }
-            for (let i = 0; i < favorites.length; i++) {
-                if (i !== index && String(favorites[i].name).toLocaleLowerCase() === newName.toLocaleLowerCase()) {
-                    setStatus("Bu isimde başka favori var");
-                    return;
-                }
-            }
-            favorites[index].name = newName;
-            saveFavorites(favorites);
-            setStatus("Favori yeniden adlandırıldı");
-            return;
-        }
-
-        const deleteMatch = /^S(\d+)$/i.exec(normalized);
-        if (deleteMatch) {
-            const index = Number(deleteMatch[1]) - 1;
-            if (index < 0 || index >= favorites.length) {
-                setStatus("Geçersiz favori seçimi");
-                return;
-            }
-            const name = favorites[index].name;
-            if (!confirm("'" + name + "' favorisi silinsin mi?")) return;
-            favorites.splice(index, 1);
-            saveFavorites(favorites);
-            setStatus("Favori silindi: " + name);
-            return;
-        }
-
-        if (!/^\d+$/.test(normalized)) {
-            setStatus("Geçersiz favori seçimi");
-            return;
-        }
-        const index = Number(normalized) - 1;
-        if (index < 0 || index >= favorites.length) {
-            setStatus("Geçersiz favori seçimi");
-            return;
-        }
-        codeInput.value = favorites[index].code;
-        setStatus("★ Favoriden editöre yüklendi: " + favorites[index].name);
-        focusEditor();
-    }
-
-    async function openUpdates() {
-        setStatus("GitHub Releases açılıyor...");
-        try {
-            if (!shell || typeof shell.openExternal !== "function") {
-                throw new Error("UXP shell.openExternal kullanılamıyor");
-            }
-            await shell.openExternal(RELEASES_URL);
-            setStatus("GitHub Releases tarayıcıda açıldı");
-        } catch (error) {
-            let message = "Güncelleme sayfası açılamadı";
-            try { if (error && error.message) message += ": " + error.message; } catch (e) {}
-            setStatus("✕ " + message);
-        }
-    }
-
-    runButton.addEventListener("click", runCode);
-    clearButton.addEventListener("click", clearCode);
-    codeInput.addEventListener("keydown", function (event) {
-        if (event.ctrlKey && event.key === "Enter") {
-            event.preventDefault();
-            runCode();
-        }
-    });
-    if (historyButton) historyButton.addEventListener("click", showHistory);
-    if (saveFavoriteButton) saveFavoriteButton.addEventListener("click", saveCurrentFavorite);
-    if (favoritesButton) favoritesButton.addEventListener("click", showFavorites);
-    if (updateButton) updateButton.addEventListener("click", openUpdates);
-
-    setStatus("Hazır");
-}
