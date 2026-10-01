@@ -1,17 +1,11 @@
 {
-  "name": "com.adobe.uxp.quick.starter.id",
-  "version": "1.0.0",
-  "description": "Default template for creating Adobe UXP based InDesign plugin.",
-  "main": "index.js",
+  "name": "talha-runner-v2",
+  "version": "2.1.0",
+  "private": false,
+  "description": "Adobe InDesign icinde JavaScript/ExtendScript kodlarini hizla calistirmak icin UXP tabanli acik kaynak kod runner paneli.",
   "repository": {
     "type": "git",
-    "url": "git@git.corp.adobe.com:torq/uxp-developer-tools.git",
-    "directory": "packages/uxp-templates-pack"
+    "url": "https://github.com/talha266741/TALHA_RUNNER_V2.git"
   },
-  "author": "Adobe Inc",
-  "license": "Apache-2.0",
-  "files": [
-    "template.json",
-    "template"
-  ]
+  "license": "MIT"
 }
