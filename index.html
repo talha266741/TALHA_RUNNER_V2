@@ -4,190 +4,45 @@
   <meta charset="UTF-8">
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
-    }
-
-    body {
-      background: #2b2b2b;
-      color: #f0f0f0;
-    }
-
-    .runner {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      height: 100vh;
-      padding: 12px;
-      gap: 10px;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 34px;
-    }
-
-    .brand {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    .title {
-      font-size: 15px;
-      font-weight: bold;
-      letter-spacing: 0.4px;
-    }
-
-    .version {
-      margin-top: 2px;
-      font-size: 10px;
-      color: #9e9e9e;
-    }
-
-    .update-status {
-      font-size: 10px;
-      color: #a8a8a8;
-      white-space: nowrap;
-    }
-
-    .editor-wrap {
-      flex: 1;
-      min-height: 120px;
-      display: flex;
-    }
-
-    #codeInput {
-      width: 100%;
-      height: 100%;
-      min-height: 120px;
-      resize: none;
-      padding: 10px;
-      border: 1px solid #555;
-      border-radius: 5px;
-      background: #1e1e1e;
-      color: #f2f2f2;
-      font-family: Consolas, "Courier New", monospace;
-      font-size: 12px;
-      line-height: 1.45;
-      outline: none;
-    }
-
-    #codeInput:focus {
-      border-color: #8b8b8b;
-    }
-
-    .actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    button {
-      height: 32px;
-      border: 1px solid #555;
-      border-radius: 5px;
-      background: #3b3b3b;
-      color: #f0f0f0;
-      padding: 0 12px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: #474747;
-    }
-
-    #runButton {
-      flex: 1;
-      font-weight: bold;
-      background: #505050;
-    }
-
-    #clearButton {
-      width: 82px;
-    }
-
-    .options {
-      display: flex;
-      align-items: center;
-      min-height: 22px;
-      font-size: 11px;
-      color: #c7c7c7;
-    }
-
-    .options label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .status {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 28px;
-      padding: 6px 8px;
-      border: 1px solid #444;
-      border-radius: 5px;
-      background: #242424;
-      font-size: 11px;
-    }
-
-    #statusText {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .shortcut {
-      color: #8f8f8f;
-      white-space: nowrap;
-      margin-left: 8px;
-    }
-
-    .bottom {
-      display: flex;
-      gap: 8px;
-    }
-
-    .bottom button {
-      flex: 1;
-      font-size: 11px;
-    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    body { background: #2b2b2b; color: #f0f0f0; }
+    .runner { display: flex; flex-direction: column; width: 100%; height: 100vh; padding: 12px; gap: 10px; }
+    .header { display: flex; align-items: center; justify-content: space-between; min-height: 34px; }
+    .brand { display: flex; flex-direction: column; min-width: 0; }
+    .title { font-size: 15px; font-weight: bold; letter-spacing: 0.4px; }
+    .version { margin-top: 2px; font-size: 10px; color: #9e9e9e; }
+    .update-status { font-size: 10px; color: #a8a8a8; white-space: nowrap; }
+    .editor-wrap { flex: 1; min-height: 120px; display: flex; }
+    #codeInput { width: 100%; height: 100%; min-height: 120px; resize: none; padding: 10px; border: 1px solid #555; border-radius: 5px; background: #1e1e1e; color: #f2f2f2; font-family: Consolas, "Courier New", monospace; font-size: 12px; line-height: 1.45; outline: none; }
+    #codeInput:focus { border-color: #8b8b8b; }
+    .actions { display: flex; gap: 8px; }
+    button { height: 32px; border: 1px solid #555; border-radius: 5px; background: #3b3b3b; color: #f0f0f0; padding: 0 12px; cursor: pointer; }
+    button:hover { background: #474747; }
+    #runButton { flex: 1; font-weight: bold; background: #505050; }
+    #clearButton { width: 82px; }
+    .options { display: flex; align-items: center; min-height: 22px; font-size: 11px; color: #c7c7c7; }
+    .options label { display: flex; align-items: center; gap: 6px; }
+    .status { display: flex; align-items: center; justify-content: space-between; min-height: 28px; padding: 6px 8px; border: 1px solid #444; border-radius: 5px; background: #242424; font-size: 11px; }
+    #statusText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .shortcut { color: #8f8f8f; white-space: nowrap; margin-left: 8px; }
+    .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .bottom button { width: 100%; min-width: 0; font-size: 11px; padding: 0 6px; }
   </style>
 </head>
 
 <body>
   <div class="runner">
-
     <div class="header">
       <div class="brand">
         <div class="title">TALHA RUNNER</div>
-        <div class="version">V2 • 2.0.2</div>
+        <div class="version">V2 • 2.0.3</div>
       </div>
-
-      <div class="update-status">
-        ● Güncel
-      </div>
+      <div class="update-status">● GitHub</div>
     </div>
 
     <div class="editor-wrap">
-      <textarea
-        id="codeInput"
-        spellcheck="false"
-        placeholder="ChatGPT kodunu buraya yapıştır..."
-      ></textarea>
+      <textarea id="codeInput" spellcheck="false" placeholder="ChatGPT kodunu buraya yapıştır..."></textarea>
     </div>
 
     <div class="actions">
@@ -196,10 +51,7 @@
     </div>
 
     <div class="options">
-      <label>
-        <input id="clearAfterRun" type="checkbox">
-        Çalıştırınca kodu temizle
-      </label>
+      <label><input id="clearAfterRun" type="checkbox">Çalıştırınca kodu temizle</label>
     </div>
 
     <div class="status">
@@ -208,11 +60,11 @@
     </div>
 
     <div class="bottom">
+      <button id="saveFavoriteButton">★ Favoriye Kaydet</button>
+      <button id="favoritesButton">★ Favorilerim</button>
       <button id="historyButton">Geçmiş</button>
-      <button id="favoritesButton">Favoriler</button>
       <button id="updateButton">Güncelle</button>
     </div>
-
   </div>
 
   <script src="main.js"></script>
