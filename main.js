@@ -107,8 +107,6 @@ function initializeRunner() {
                 codeInput.value = "";
             }
 
-            restoreInDesignFocus();
-
         } catch (error) {
 
             let message = "Bilinmeyen hata";
@@ -123,6 +121,8 @@ function initializeRunner() {
             }
 
             setStatus("✕ " + message);
+        } finally {
+            restoreInDesignFocus();
         }
     }
 
@@ -158,7 +158,36 @@ function initializeRunner() {
             message += (i + 1) + ". " + preview + "\n";
         }
 
-        alert(message);
+        const selection = prompt(
+            message + "\nYüklemek istediğiniz kodun numarasını girin:",
+            "1"
+        );
+
+        if (selection === null) {
+            return;
+        }
+
+        const normalizedSelection = String(selection).trim();
+
+        if (!/^\d+$/.test(normalizedSelection)) {
+            setStatus("Geçersiz geçmiş seçimi");
+            return;
+        }
+
+        const selectedIndex = Number(normalizedSelection) - 1;
+
+        if (selectedIndex < 0 || selectedIndex >= history.length) {
+            setStatus("Geçersiz geçmiş seçimi");
+            return;
+        }
+
+        codeInput.value = history[selectedIndex];
+        setStatus("Geçmişten editöre yüklendi");
+
+        try {
+            codeInput.focus();
+        } catch (e) {
+        }
     }
 
 
