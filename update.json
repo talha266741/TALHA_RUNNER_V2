@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "runtimeVersion": "2.1.3",
+  "runtimeVersion": "2.1.4",
   "minCoreVersion": "1.0.1",
   "runtimeUrl": "https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/main/runtime.js",
-  "notes": "InDesign yeniden başlatma güncelleme testi. Kaydet, Favoriler, Geçmiş ve Güncelle düğmeleri ayrı renklerle işaretlendi."
+  "notes": "Gerçek CCX kurulumunda canlı 2.1.3 -> 2.1.4 güncelleme testi. Güncelle düğmesine dönüş oku eklendi."
 }
