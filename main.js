@@ -1,179 +1,25 @@
 const { entrypoints } = require("uxp");
 const { app, ScriptLanguage, UndoModes } = require("indesign");
 
-const CORE_VERSION = "1.0.2";
+const CORE_VERSION = "1.0.3";
 const BUNDLED_RUNTIME_VERSION = "2.1.0";
 const UPDATE_MANIFEST_API_URL = "https://api.github.com/repos/talha266741/TALHA_RUNNER_V2/contents/update.json?ref=main";
-const CACHE_SOURCE_KEY = "talhaRunnerRuntimeSource";
-const CACHE_VERSION_KEY = "talhaRunnerRuntimeVersion";
-const PREVIOUS_SOURCE_KEY = "talhaRunnerRuntimePreviousSource";
-const PREVIOUS_VERSION_KEY = "talhaRunnerRuntimePreviousVersion";
-
+const CACHE_SOURCE_KEY="talhaRunnerRuntimeSource", CACHE_VERSION_KEY="talhaRunnerRuntimeVersion", PREVIOUS_SOURCE_KEY="talhaRunnerRuntimePreviousSource", PREVIOUS_VERSION_KEY="talhaRunnerRuntimePreviousVersion";
 const bundledRuntimeFactory = require("./runtime-bundled.js");
-let activeRuntime = null;
-let activeRuntimeVersion = BUNDLED_RUNTIME_VERSION;
-let activeRuntimeOrigin = "bundled";
-let panelVisible = false;
-let updateInProgress = false;
+let activeRuntime=null, activeRuntimeVersion=BUNDLED_RUNTIME_VERSION, activeRuntimeOrigin="bundled", panelVisible=false, updateInProgress=false;
 
-function compareVersions(a, b) {
-    const aa = String(a || "0").split(".").map(Number);
-    const bb = String(b || "0").split(".").map(Number);
-    const length = Math.max(aa.length, bb.length);
-    for (let i = 0; i < length; i++) {
-        const av = Number.isFinite(aa[i]) ? aa[i] : 0;
-        const bv = Number.isFinite(bb[i]) ? bb[i] : 0;
-        if (av > bv) return 1;
-        if (av < bv) return -1;
-    }
-    return 0;
-}
-
-function compileRuntime(source) {
-    if (!source || !String(source).trim()) throw new Error("Runtime içeriği boş");
-    const moduleObject = { exports: {} };
-    const loader = new Function("module", "exports", String(source));
-    loader(moduleObject, moduleObject.exports);
-    if (typeof moduleObject.exports !== "function") throw new Error("Runtime geçerli bir factory dışa aktarmıyor");
-    return moduleObject.exports;
-}
-
-function readStoredRuntime(sourceKey, versionKey, origin) {
-    try {
-        const source = localStorage.getItem(sourceKey);
-        const version = localStorage.getItem(versionKey);
-        if (!source || !version) return null;
-        return { factory: compileRuntime(source), source: source, version: version, origin: origin };
-    } catch (error) {
-        console.error(origin + " runtime okunamadı.", error);
-        return null;
-    }
-}
-
-function clearStoredRuntime(sourceKey, versionKey) {
-    try { localStorage.removeItem(sourceKey); localStorage.removeItem(versionKey); } catch (e) {}
-}
-
-function buildContext(runtimeVersion, runtimeOrigin) {
-    return {
-        app: app,
-        ScriptLanguage: ScriptLanguage,
-        UndoModes: UndoModes,
-        runtimeVersion: runtimeVersion,
-        runtimeOrigin: runtimeOrigin,
-        coreVersion: CORE_VERSION,
-        core: {
-            checkAndInstallUpdate: checkAndInstallUpdate,
-            getCoreVersion: function () { return CORE_VERSION; },
-            getRuntimeVersion: function () { return activeRuntimeVersion; },
-            getRuntimeOrigin: function () { return activeRuntimeOrigin; }
-        }
-    };
-}
-
-function activateRuntime(factory, version, origin) {
-    const oldRuntime = activeRuntime;
-    if (oldRuntime && typeof oldRuntime.dispose === "function") {
-        try { oldRuntime.dispose(); } catch (e) { console.error("Eski runtime dispose hatası", e); }
-    }
-    let instance;
-    try {
-        instance = factory(buildContext(version, origin));
-        if (!instance || typeof instance.initialize !== "function") throw new Error("Runtime initialize() sağlamıyor");
-        instance.initialize();
-    } catch (error) { activeRuntime = null; throw error; }
-    activeRuntime = instance;
-    activeRuntimeVersion = version;
-    activeRuntimeOrigin = origin;
-}
-
-function activateBestAvailableRuntime() {
-    const cached = readStoredRuntime(CACHE_SOURCE_KEY, CACHE_VERSION_KEY, "cache");
-    if (cached) {
-        try { activateRuntime(cached.factory, cached.version, cached.origin); return; }
-        catch (error) { console.error("Cached runtime başlatılamadı; cache temizleniyor.", error); clearStoredRuntime(CACHE_SOURCE_KEY, CACHE_VERSION_KEY); }
-    }
-    const previous = readStoredRuntime(PREVIOUS_SOURCE_KEY, PREVIOUS_VERSION_KEY, "previous");
-    if (previous) {
-        try {
-            activateRuntime(previous.factory, previous.version, previous.origin);
-            localStorage.setItem(CACHE_SOURCE_KEY, previous.source);
-            localStorage.setItem(CACHE_VERSION_KEY, previous.version);
-            return;
-        } catch (error) { console.error("Önceki runtime da başlatılamadı; temizleniyor.", error); clearStoredRuntime(PREVIOUS_SOURCE_KEY, PREVIOUS_VERSION_KEY); }
-    }
-    activateRuntime(bundledRuntimeFactory, BUNDLED_RUNTIME_VERSION, "bundled");
-}
-
-async function fetchJson(url) {
-    const separator = url.indexOf("?") >= 0 ? "&" : "?";
-    const response = await fetch(url + separator + "t=" + Date.now(), {
-        method: "GET",
-        cache: "no-store",
-        headers: { "Accept": "application/vnd.github.raw+json" }
-    });
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    return await response.json();
-}
-
-async function fetchText(url) {
-    const separator = url.indexOf("?") >= 0 ? "&" : "?";
-    const response = await fetch(url + separator + "t=" + Date.now(), { method: "GET", cache: "no-store" });
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    return await response.text();
-}
-
-async function checkAndInstallUpdate() {
-    if (updateInProgress) throw new Error("Güncelleme zaten devam ediyor");
-    updateInProgress = true;
-    try {
-        const manifest = await fetchJson(UPDATE_MANIFEST_API_URL);
-        if (!manifest || manifest.schemaVersion !== 1) throw new Error("Desteklenmeyen update manifesti");
-        if (!manifest.runtimeVersion || !manifest.runtimeUrl) throw new Error("Güncelleme bilgisi eksik");
-        if (manifest.minCoreVersion && compareVersions(CORE_VERSION, manifest.minCoreVersion) < 0) throw new Error("Bu güncelleme daha yeni bir Core gerektiriyor (" + manifest.minCoreVersion + ")");
-
-        const currentVersion = activeRuntimeVersion || BUNDLED_RUNTIME_VERSION;
-        if (compareVersions(manifest.runtimeVersion, currentVersion) <= 0) return { updated: false, version: currentVersion, message: "✓ Zaten güncel: " + currentVersion };
-
-        let runtimeUrl = manifest.runtimeUrl;
-        if (manifest.runtimeCommit) runtimeUrl = "https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/" + encodeURIComponent(manifest.runtimeCommit) + "/runtime.js";
-        const candidateSource = await fetchText(runtimeUrl);
-        const candidateFactory = compileRuntime(candidateSource);
-        const oldSource = localStorage.getItem(CACHE_SOURCE_KEY);
-        const oldVersion = localStorage.getItem(CACHE_VERSION_KEY);
-        if (oldSource && oldVersion) {
-            localStorage.setItem(PREVIOUS_SOURCE_KEY, oldSource);
-            localStorage.setItem(PREVIOUS_VERSION_KEY, oldVersion);
-        }
-        try {
-            if (panelVisible) activateRuntime(candidateFactory, manifest.runtimeVersion, "cache");
-            localStorage.setItem(CACHE_SOURCE_KEY, candidateSource);
-            localStorage.setItem(CACHE_VERSION_KEY, manifest.runtimeVersion);
-            return { updated: true, version: manifest.runtimeVersion, message: "✓ Güncellendi: " + manifest.runtimeVersion };
-        } catch (error) {
-            console.error("Aday runtime etkinleştirilemedi; rollback uygulanıyor.", error);
-            clearStoredRuntime(CACHE_SOURCE_KEY, CACHE_VERSION_KEY);
-            if (oldSource && oldVersion) {
-                localStorage.setItem(CACHE_SOURCE_KEY, oldSource);
-                localStorage.setItem(CACHE_VERSION_KEY, oldVersion);
-                if (panelVisible) activateRuntime(compileRuntime(oldSource), oldVersion, "cache");
-            } else if (panelVisible) activateRuntime(bundledRuntimeFactory, BUNDLED_RUNTIME_VERSION, "bundled");
-            throw error;
-        }
-    } finally { updateInProgress = false; }
-}
-
-entrypoints.setup({
-    commands: { showAlert: function () { alert("Talha Runner V2"); } },
-    panels: {
-        showPanel: {
-            show: function () { panelVisible = true; if (!activeRuntime) activateBestAvailableRuntime(); },
-            hide: function () { panelVisible = false; },
-            destroy: function () {
-                panelVisible = false;
-                if (activeRuntime && typeof activeRuntime.dispose === "function") { try { activeRuntime.dispose(); } catch (e) {} }
-                activeRuntime = null;
-            }
-        }
-    }
-});
+function compareVersions(a,b){const aa=String(a||"0").split(".").map(Number),bb=String(b||"0").split(".").map(Number),n=Math.max(aa.length,bb.length);for(let i=0;i<n;i++){const av=Number.isFinite(aa[i])?aa[i]:0,bv=Number.isFinite(bb[i])?bb[i]:0;if(av>bv)return 1;if(av<bv)return-1;}return 0;}
+function compileRuntime(source){if(!source||!String(source).trim())throw new Error("Runtime içeriği boş");const m={exports:{}};new Function("module","exports",String(source))(m,m.exports);if(typeof m.exports!=="function")throw new Error("Runtime geçerli bir factory dışa aktarmıyor");return m.exports;}
+function readStoredRuntime(sk,vk,origin){try{const source=localStorage.getItem(sk),version=localStorage.getItem(vk);if(!source||!version)return null;return{factory:compileRuntime(source),source,version,origin};}catch(e){console.error(origin+" runtime okunamadı",e);return null;}}
+function clearStoredRuntime(sk,vk){try{localStorage.removeItem(sk);localStorage.removeItem(vk);}catch(e){}}
+function getPreviousVersion(){try{return localStorage.getItem(PREVIOUS_VERSION_KEY)||null;}catch(e){return null;}}
+function buildContext(version,origin){return{app,ScriptLanguage,UndoModes,runtimeVersion:version,runtimeOrigin:origin,coreVersion:CORE_VERSION,core:{checkForUpdate,checkAndInstallUpdate,rollbackToPrevious,getCoreVersion:()=>CORE_VERSION,getRuntimeVersion:()=>activeRuntimeVersion,getRuntimeOrigin:()=>activeRuntimeOrigin,getPreviousVersion}};}
+function activateRuntime(factory,version,origin){const old=activeRuntime;if(old&&typeof old.dispose==="function")try{old.dispose();}catch(e){}let instance=factory(buildContext(version,origin));if(!instance||typeof instance.initialize!=="function")throw new Error("Runtime initialize() sağlamıyor");instance.initialize();activeRuntime=instance;activeRuntimeVersion=version;activeRuntimeOrigin=origin;}
+function activateBestAvailableRuntime(){const cached=readStoredRuntime(CACHE_SOURCE_KEY,CACHE_VERSION_KEY,"cache");if(cached)try{activateRuntime(cached.factory,cached.version,cached.origin);return;}catch(e){clearStoredRuntime(CACHE_SOURCE_KEY,CACHE_VERSION_KEY);}const prev=readStoredRuntime(PREVIOUS_SOURCE_KEY,PREVIOUS_VERSION_KEY,"previous");if(prev)try{activateRuntime(prev.factory,prev.version,prev.origin);localStorage.setItem(CACHE_SOURCE_KEY,prev.source);localStorage.setItem(CACHE_VERSION_KEY,prev.version);return;}catch(e){clearStoredRuntime(PREVIOUS_SOURCE_KEY,PREVIOUS_VERSION_KEY);}activateRuntime(bundledRuntimeFactory,BUNDLED_RUNTIME_VERSION,"bundled");}
+async function fetchJson(url){const s=url.indexOf("?")>=0?"&":"?",r=await fetch(url+s+"t="+Date.now(),{method:"GET",cache:"no-store",headers:{"Accept":"application/vnd.github.raw+json","Cache-Control":"no-cache"}});if(!r.ok)throw new Error("HTTP "+r.status);return await r.json();}
+async function fetchText(url){const s=url.indexOf("?")>=0?"&":"?",r=await fetch(url+s+"t="+Date.now(),{method:"GET",cache:"no-store",headers:{"Cache-Control":"no-cache"}});if(!r.ok)throw new Error("HTTP "+r.status);return await r.text();}
+async function readManifest(){const m=await fetchJson(UPDATE_MANIFEST_API_URL);if(!m||m.schemaVersion!==1)throw new Error("Desteklenmeyen update manifesti");if(!m.runtimeVersion||!m.runtimeUrl)throw new Error("Güncelleme bilgisi eksik");if(m.minCoreVersion&&compareVersions(CORE_VERSION,m.minCoreVersion)<0)throw new Error("Bu güncelleme daha yeni bir Core gerektiriyor ("+m.minCoreVersion+")");return m;}
+async function checkForUpdate(){const m=await readManifest(),current=activeRuntimeVersion||BUNDLED_RUNTIME_VERSION;return{available:compareVersions(m.runtimeVersion,current)>0,currentVersion:current,version:m.runtimeVersion,title:m.title||("TALHA RUNNER "+m.runtimeVersion),summary:m.summary||"Yeni sürüm mevcut.",notes:Array.isArray(m.notes)?m.notes:[],history:Array.isArray(m.history)?m.history:[],previousVersion:getPreviousVersion()};}
+async function checkAndInstallUpdate(){if(updateInProgress)throw new Error("Güncelleme zaten devam ediyor");updateInProgress=true;try{const m=await readManifest(),current=activeRuntimeVersion||BUNDLED_RUNTIME_VERSION;if(compareVersions(m.runtimeVersion,current)<=0)return{updated:false,version:current,message:"✓ Zaten güncel: "+current};let url=m.runtimeUrl;if(m.runtimeCommit)url="https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/"+encodeURIComponent(m.runtimeCommit)+"/runtime.js";const source=await fetchText(url),factory=compileRuntime(source),oldSource=localStorage.getItem(CACHE_SOURCE_KEY),oldVersion=localStorage.getItem(CACHE_VERSION_KEY);if(oldSource&&oldVersion){localStorage.setItem(PREVIOUS_SOURCE_KEY,oldSource);localStorage.setItem(PREVIOUS_VERSION_KEY,oldVersion);}else if(activeRuntimeOrigin==="bundled"){try{localStorage.setItem(PREVIOUS_VERSION_KEY,BUNDLED_RUNTIME_VERSION);}catch(e){}}try{if(panelVisible)activateRuntime(factory,m.runtimeVersion,"cache");localStorage.setItem(CACHE_SOURCE_KEY,source);localStorage.setItem(CACHE_VERSION_KEY,m.runtimeVersion);return{updated:true,version:m.runtimeVersion,message:"✓ Güncellendi: "+m.runtimeVersion};}catch(e){clearStoredRuntime(CACHE_SOURCE_KEY,CACHE_VERSION_KEY);if(oldSource&&oldVersion){localStorage.setItem(CACHE_SOURCE_KEY,oldSource);localStorage.setItem(CACHE_VERSION_KEY,oldVersion);if(panelVisible)activateRuntime(compileRuntime(oldSource),oldVersion,"cache");}else if(panelVisible)activateRuntime(bundledRuntimeFactory,BUNDLED_RUNTIME_VERSION,"bundled");throw e;}}finally{updateInProgress=false;}}
+function rollbackToPrevious(){const prev=readStoredRuntime(PREVIOUS_SOURCE_KEY,PREVIOUS_VERSION_KEY,"previous");if(prev){const curSource=localStorage.getItem(CACHE_SOURCE_KEY),curVersion=localStorage.getItem(CACHE_VERSION_KEY);if(panelVisible)activateRuntime(prev.factory,prev.version,"cache");localStorage.setItem(CACHE_SOURCE_KEY,prev.source);localStorage.setItem(CACHE_VERSION_KEY,prev.version);if(curSource&&curVersion){localStorage.setItem(PREVIOUS_SOURCE_KEY,curSource);localStorage.setItem(PREVIOUS_VERSION_KEY,curVersion);}return{rolledBack:true,version:prev.version};}if(getPreviousVersion()===BUNDLED_RUNTIME_VERSION){if(panelVisible)activateRuntime(bundledRuntimeFactory,BUNDLED_RUNTIME_VERSION,"bundled");clearStoredRuntime(CACHE_SOURCE_KEY,CACHE_VERSION_KEY);return{rolledBack:true,version:BUNDLED_RUNTIME_VERSION};}throw new Error("Geri dönülebilecek önceki sürüm yok");}
+entrypoints.setup({commands:{showAlert:()=>alert("Talha Runner V2")},panels:{showPanel:{show:()=>{panelVisible=true;if(!activeRuntime)activateBestAvailableRuntime();},hide:()=>{panelVisible=false;},destroy:()=>{panelVisible=false;if(activeRuntime&&typeof activeRuntime.dispose==="function")try{activeRuntime.dispose();}catch(e){}activeRuntime=null;}}}});
