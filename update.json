@@ -1,24 +1,18 @@
 {
   "schemaVersion":1,
-  "runtimeVersion":"2.2.0",
+  "runtimeVersion":"2.2.1",
   "minCoreVersion":"1.0.3",
   "runtimeUrl":"https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/main/runtime.js",
-  "runtimeCommit":"4725020aeb9c3ba9968ec068476080dd284d9d04",
-  "title":"TALHA RUNNER 2.2.0",
-  "summary":"Yeni bildirim ve güvenli güncelleme deneyimi hazır.",
+  "runtimeCommit":"ad2f1056db83987740a6173b7e13f4c85f85854d",
+  "title":"TALHA RUNNER 2.2.1",
+  "summary":"Canlı güncelleme sistemi için ilk gerçek CCX testi.",
   "notes":[
-    "Yeni sürüm geldiğinde rahatsız etmeyen zil bildirimi gösterilir.",
-    "Bildirim bir kez okununca kırmızı işaret söner; yeni sürümde yeniden yanar.",
-    "Sürüm detayları ve değişiklik notları güncellemeden önce görüntülenebilir.",
-    "İstenmeyen bir sürüm atlanabilir; sonraki sürüm çıktığında bildirim yeniden gelir.",
-    "Önceki runtime sürümüne geri dönüş desteği eklendi.",
-    "Bozuk güncellemede otomatik rollback korunur.",
-    "Güncelleme keşfi GitHub API üzerinden, runtime indirmesi sabit commit üzerinden yapılır.",
-    "İnternet yokken otomatik kontrol sessizce başarısız olur ve Runner çalışmaya devam eder.",
-    "Panel düzeni 260x300 minimum boyutta temel kontroller görünür kalacak şekilde sıkılaştırıldı."
+    "Kurulu CCX üzerinden yeniden paketleme yapmadan runtime güncellemesi test ediliyor.",
+    "Yeni sürüm bulunduğunda durum alanı Güncelleme var olarak değişir.",
+    "Favoriler güncellemeden bağımsız olarak korunur."
   ],
   "history":[
-    {"version":"2.1.4","title":"Canlı güncelleme testi","notes":["CCX kurulumundan runtime güncellemesi doğrulandı."]},
-    {"version":"2.1.3","title":"Araç çubuğu görünürlüğü","notes":["Kaydet, Favoriler, Geçmiş ve Güncelle düğmeleri ayrı renklerle işaretlendi."]}
+    {"version":"2.2.0","title":"Bildirim ve güvenli güncelleme altyapısı","notes":["GitHub API tabanlı güncelleme keşfi ve sabit commit üzerinden runtime indirme eklendi."]},
+    {"version":"2.1.4","title":"Canlı güncelleme testi","notes":["CCX kurulumundan runtime güncellemesi doğrulandı."]}
   ]
 }
