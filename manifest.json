@@ -1,11 +1,16 @@
 {
   "id":"com.talha.indesign.talharunner.v2",
   "name":"TALHA RUNNER V2",
-  "version":"2.3.0",
+  "version":"2.3.1",
   "main":"index.html",
   "host":{"app":"ID","minVersion":"21.6.0"},
   "manifestVersion":5,
-  "requiredPermissions":{"allowCodeGenerationFromStrings":true,"localFileSystem":"plugin","network":{"domains":["https://raw.githubusercontent.com","https://api.github.com"]}},
+  "requiredPermissions":{
+    "allowCodeGenerationFromStrings":true,
+    "clipboard":"readAndWrite",
+    "localFileSystem":"request",
+    "network":{"domains":["https://raw.githubusercontent.com","https://api.github.com"]}
+  },
   "entrypoints":[
     {"type":"command","id":"showAlert","label":"Talha Runner V2"},
     {"type":"panel","id":"showPanel","minimumSize":{"width":280,"height":340},"maximumSize":{"width":2000,"height":2000},"preferredDockedSize":{"width":380,"height":620},"preferredFloatingSize":{"width":460,"height":720},"label":{"default":"Talha Runner V2"},"icons":[{"width":23,"height":23,"path":"icons/dark.png","scale":[1,2],"theme":["darkest","dark","medium"]},{"width":23,"height":23,"path":"icons/light.png","scale":[1,2],"theme":["lightest","light"]}]}
