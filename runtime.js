@@ -29,35 +29,22 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
 
         if (!codeInput || !runButton) throw new Error("Runner arayüzü bulunamadı");
         if (versionText) versionText.textContent = "V2 • " + (ctx.runtimeVersion || "yerleşik");
-        if (updateStatus) updateStatus.textContent = ctx.runtimeSource === "cache" ? "● Güncel runtime" : "● Yerleşik runtime";
+        if (updateStatus) updateStatus.textContent = ctx.runtimeOrigin === "cache" ? "● Güncel runtime" : "● Yerleşik runtime";
 
-        function setStatus(message) {
-            if (statusText) statusText.textContent = message;
-        }
-
+        function setStatus(message) { if (statusText) statusText.textContent = message; }
         function addToHistory(code) {
             if (!code) return;
             if (history.length > 0 && history[0] === code) return;
             history.unshift(code);
             if (history.length > MAX_HISTORY) history.pop();
         }
-
         function restoreInDesignFocus() {
-            try {
-                if (app.activeWindow && app.activeWindow.activate) app.activeWindow.activate();
-            } catch (e) {}
+            try { if (app.activeWindow && app.activeWindow.activate) app.activeWindow.activate(); } catch (e) {}
         }
-
-        function focusEditor() {
-            try { codeInput.focus(); } catch (e) {}
-        }
-
+        function focusEditor() { try { codeInput.focus(); } catch (e) {} }
         function runCode() {
             const code = codeInput.value;
-            if (!code || !code.replace(/\s/g, "")) {
-                setStatus("Kod alanı boş");
-                return;
-            }
+            if (!code || !code.replace(/\s/g, "")) return setStatus("Kod alanı boş");
             setStatus("Çalıştırılıyor...");
             try {
                 app.doScript(code, ScriptLanguage.JAVASCRIPT, undefined, UndoModes.ENTIRE_SCRIPT, "Talha Runner V2");
@@ -68,22 +55,11 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
                 let message = "Bilinmeyen hata";
                 try { message = error && error.message ? error.message : String(error); } catch (e) {}
                 setStatus("✕ " + message);
-            } finally {
-                restoreInDesignFocus();
-            }
+            } finally { restoreInDesignFocus(); }
         }
-
-        function clearCode() {
-            codeInput.value = "";
-            setStatus("Hazır");
-            focusEditor();
-        }
-
+        function clearCode() { codeInput.value = ""; setStatus("Hazır"); focusEditor(); }
         function showHistory() {
-            if (history.length === 0) {
-                setStatus("Geçmiş boş");
-                return;
-            }
+            if (history.length === 0) return setStatus("Geçmiş boş");
             let message = "SON ÇALIŞTIRILAN KODLAR\n\n";
             for (let i = 0; i < history.length; i++) {
                 let preview = history[i].replace(/\r/g, " ").replace(/\n/g, " ");
@@ -96,11 +72,8 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
             if (!/^\d+$/.test(normalized)) return setStatus("Geçersiz geçmiş seçimi");
             const index = Number(normalized) - 1;
             if (index < 0 || index >= history.length) return setStatus("Geçersiz geçmiş seçimi");
-            codeInput.value = history[index];
-            setStatus("Geçmişten editöre yüklendi");
-            focusEditor();
+            codeInput.value = history[index]; setStatus("Geçmişten editöre yüklendi"); focusEditor();
         }
-
         function loadFavorites() {
             try {
                 const raw = localStorage.getItem(FAVORITES_KEY);
@@ -109,11 +82,7 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
                 return Array.isArray(parsed) ? parsed : [];
             } catch (e) { return []; }
         }
-
-        function saveFavorites(favorites) {
-            localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-        }
-
+        function saveFavorites(favorites) { localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites)); }
         function saveCurrentFavorite() {
             const code = codeInput.value;
             if (!code || !code.replace(/\s/g, "")) return setStatus("Favoriye kaydedilecek kod yok");
@@ -129,15 +98,10 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
             if (existingIndex >= 0) {
                 if (!confirm("'" + favorites[existingIndex].name + "' zaten var. Üzerine yazılsın mı?")) return setStatus("Favori değiştirilmedi");
                 favorites[existingIndex] = { name: name, code: code };
-            } else {
-                favorites.push({ name: name, code: code });
-            }
-            try {
-                saveFavorites(favorites);
-                setStatus("★ Favoriye kaydedildi: " + name);
-            } catch (e) { setStatus("✕ Favori kaydedilemedi"); }
+            } else favorites.push({ name: name, code: code });
+            try { saveFavorites(favorites); setStatus("★ Favoriye kaydedildi: " + name); }
+            catch (e) { setStatus("✕ Favori kaydedilemedi"); }
         }
-
         function showFavorites() {
             let favorites = loadFavorites();
             if (favorites.length === 0) return setStatus("Favoriler boş");
@@ -155,12 +119,8 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
                 if (newNameInput === null) return;
                 const newName = String(newNameInput).trim();
                 if (!newName) return setStatus("Favori adı boş olamaz");
-                for (let i = 0; i < favorites.length; i++) {
-                    if (i !== index && String(favorites[i].name).toLocaleLowerCase() === newName.toLocaleLowerCase()) return setStatus("Bu isimde başka favori var");
-                }
-                favorites[index].name = newName;
-                saveFavorites(favorites);
-                return setStatus("Favori yeniden adlandırıldı");
+                for (let i = 0; i < favorites.length; i++) if (i !== index && String(favorites[i].name).toLocaleLowerCase() === newName.toLocaleLowerCase()) return setStatus("Bu isimde başka favori var");
+                favorites[index].name = newName; saveFavorites(favorites); return setStatus("Favori yeniden adlandırıldı");
             }
             const deleteMatch = /^S(\d+)$/i.exec(normalized);
             if (deleteMatch) {
@@ -168,18 +128,13 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
                 if (index < 0 || index >= favorites.length) return setStatus("Geçersiz favori seçimi");
                 const name = favorites[index].name;
                 if (!confirm("'" + name + "' favorisi silinsin mi?")) return;
-                favorites.splice(index, 1);
-                saveFavorites(favorites);
-                return setStatus("Favori silindi: " + name);
+                favorites.splice(index, 1); saveFavorites(favorites); return setStatus("Favori silindi: " + name);
             }
             if (!/^\d+$/.test(normalized)) return setStatus("Geçersiz favori seçimi");
             const index = Number(normalized) - 1;
             if (index < 0 || index >= favorites.length) return setStatus("Geçersiz favori seçimi");
-            codeInput.value = favorites[index].code;
-            setStatus("★ Favoriden editöre yüklendi: " + favorites[index].name);
-            focusEditor();
+            codeInput.value = favorites[index].code; setStatus("★ Favoriden editöre yüklendi: " + favorites[index].name); focusEditor();
         }
-
         async function updateRunner() {
             setStatus("Güncelleme kontrol ediliyor...");
             if (updateButton) updateButton.disabled = true;
@@ -188,24 +143,15 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
                 if (result.updated) {
                     setStatus("✓ Güncellendi: " + result.version);
                     if (updateStatus) updateStatus.textContent = "● Güncel";
-                } else {
-                    setStatus(result.message || "Zaten güncel");
-                }
+                } else setStatus(result.message || "Zaten güncel");
             } catch (error) {
                 setStatus("✕ Güncelleme başarısız: " + (error && error.message ? error.message : String(error)));
-            } finally {
-                if (updateButton) updateButton.disabled = false;
-            }
+            } finally { if (updateButton) updateButton.disabled = false; }
         }
 
         on(runButton, "click", runCode);
         on(clearButton, "click", clearCode);
-        on(codeInput, "keydown", function (event) {
-            if (event.ctrlKey && event.key === "Enter") {
-                event.preventDefault();
-                runCode();
-            }
-        });
+        on(codeInput, "keydown", function (event) { if (event.ctrlKey && event.key === "Enter") { event.preventDefault(); runCode(); } });
         on(historyButton, "click", showHistory);
         on(saveFavoriteButton, "click", saveCurrentFavorite);
         on(favoritesButton, "click", showFavorites);
@@ -219,6 +165,5 @@ module.exports = function createTalhaRunnerRuntime(ctx) {
         }
         listeners = [];
     }
-
     return { initialize: initialize, dispose: dispose };
 };
