@@ -4,9 +4,11 @@
 
 ## 1. PROJE
 
-TALHA RUNNER V2, Adobe InDesign içinde JavaScript/ExtendScript kodlarını hızlı biçimde çalıştırmak için geliştirilen bir UXP panelidir.
+TALHA RUNNER V2, Adobe InDesign içinde JavaScript/ExtendScript kodlarını hızlı biçimde çalıştırmak için geliştirilen açık kaynak bir UXP panelidir.
 
-Runner görev-özel dizgi mantığı içermez. Soru dizme, stil uygulama, tablo düzenleme vb. işler Runner'ın içine gömülmez; editörde çalıştırılan kod parçalarında bulunur. Runner altyapıdır: kod girişi → çalıştırma → durum → geçmiş/favoriler → güncelleme.
+Temel kullanım fikri: kullanıcı yapmak istediği InDesign işini bir yapay zekâya anlatır → üretilen kodu Runner'a yapıştırır → çalıştırır → yararlıysa favoriye kaydeder.
+
+Runner görev-özel dizgi mantığı içermez. Runner altyapıdır: kod girişi → çalıştırma → durum → geçmiş/favoriler → güncelleme.
 
 Repo: `talha266741/TALHA_RUNNER_V2`
 Görünürlük: PUBLIC
@@ -16,48 +18,82 @@ Ana dal: `main`
 
 Bu public repo yalnız TALHA RUNNER'ın genel kaynak kodunu, mimarisini, sürüm bilgisini ve genel geliştirme kararlarını içerir.
 
-Müşteri/kurum/işveren özelinde öğrenilmiş dizgi bilgileri, gerçek belge adları, özel stil yolları/değerleri, sembol eşlemeleri, üretim kuralları ve benzeri kuruma özgü bilgiler BU REPOYA YAZILMAZ.
-
-Bu tür bilgiler ayrı bir PRIVATE bilgi deposunda tutulur. Runner geliştirmesi için gerekli olmayan özel iş bilgisi public dokümantasyona taşınmaz.
+Müşteri/kurum/işveren özelinde öğrenilmiş dizgi bilgileri, gerçek belge adları, özel stil yolları/değerleri, sembol eşlemeleri, üretim kuralları ve benzeri kuruma özgü bilgiler BU REPOYA YAZILMAZ. Bunlar ayrı PRIVATE bilgi deposunda tutulur.
 
 ## 3. TEMEL DOSYALAR
 
-- `manifest.json`: UXP eklenti kimliği, sürüm, InDesign host bilgisi, izinler ve panel tanımı.
-- `index.html`: panel kabuğu ve görünümü.
-- `main.js`: bootstrap/Core davranışı, InDesign entegrasyonu ve güncelleme altyapısı.
-- `BENI_OKU.md`: yalnız public proje hafızası ve genel teknik kararlar.
-- Güncelleme runtime dosyaları: normal Runner geliştirmelerinin yeniden CCX kurulumu gerektirmeden dağıtılacağı katman.
+- `manifest.json`: UXP eklenti kimliği, sürüm, host ve izinler.
+- `index.html`: mümkün olduğunca sabit ve genel panel kabuğu.
+- `main.js`: küçük, kalıcı Core/bootstrap ve updater.
+- `runtime.js`: normal Runner UI davranışı; uzaktan güncellenebilir katman.
+- `update.json`: public güncelleme kanalı manifesti.
+- `README.md`: son kullanıcı dokümantasyonu.
+- `BENI_OKU.md`: public proje hafızası ve teknik kararlar.
 
-## 4. HEDEF GÜNCELLEME MİMARİSİ
+## 4. CORE / RUNTIME GÜNCELLEME MİMARİSİ
 
-Kullanıcı bir kez updater özellikli Core/Bootstrap CCX paketini kurar. Bundan sonraki normal Runner değişikliklerinde hedef kullanıcı akışı yalnızca paneldeki `Güncelle` düğmesine basmaktır.
+Updater mimarisinin ilk uygulaması 2.1.0 hattında repoya eklenmiştir.
 
-Kurulu plugin paketinin kendi dosyalarını değiştirmesine güvenilmez. Core sabit bootstrap olarak kalır; güncellenebilir Runner runtime'ı public GitHub kaynağından HTTPS ile alınır ve UXP'nin kalıcı yazılabilir plugin-data alanında saklanır.
+Adobe UXP'nin resmi davranışına göre plugin klasörü salt okunurdur; plugin data/sandbox alanı kalıcı yazılabilir depolama sağlar. UXP manifest v5 ayrıca ağ erişimi için domain izni ve string'den kod üretimi için `allowCodeGenerationFromStrings` izni sunar.
 
-Hedef akış:
+Bu nedenle kurulu plugin dosyalarını kendi kendine değiştirmek yerine iki katman kullanılır:
 
-1. Core açılır.
-2. Son çalışan runtime plugin-data alanından yüklenir; yoksa paket içindeki fallback kullanılır.
-3. Kullanıcı `Güncelle` düğmesine basar.
-4. Core public update manifestini kontrol eder.
-5. Yeni runtime varsa indirir ve doğrular.
-6. Aday runtime güvenli biçimde kaydedilir ve etkinleştirilir.
-7. Güncelleme bozuksa mevcut/önceki çalışan runtime korunur veya geri yüklenir.
-8. Ağ yoksa son çalışan runtime ile çevrimdışı kullanım sürer.
+1. **Core (`main.js`)**: paketle kurulan bootstrap. UXP/InDesign modüllerini alır, update kanalını kontrol eder, runtime'ı doğrular/etkinleştirir ve fallback sağlar.
+2. **Runtime (`runtime.js`)**: normal Runner davranışının bulunduğu güncellenebilir katman.
 
-Normal UI/Runner davranışı değişiklikleri runtime katmanında tutulmalıdır. Core/manifest değişikliği gerektiren işler istisnadır; mimari bu ihtiyacı mümkün olduğunca azaltacak şekilde tasarlanmalıdır.
+Güncelleme kanalı:
 
-Plugin içine GitHub PAT/token/secrets gömülmez.
+`https://raw.githubusercontent.com/talha266741/TALHA_RUNNER_V2/main/update.json`
 
-## 5. RUNNER'IN İKİ JAVASCRIPT ORTAMI
+`update.json` şu anda `runtimeVersion`, `minCoreVersion`, `runtimeUrl` ve notları taşır.
+
+İlk uygulamada indirilen runtime kaynak metni UXP `localStorage` içinde kalıcı cache olarak tutulur. Bu, UXP'nin plugin data alanıyla aynı amaç sınıfında kalıcı plugin depolamasıdır ve normal runtime güncellemelerinde kurulu plugin klasörüne yazmayı gerektirmez. İleride gerekirse cache fiziksel plugin-data dosyasına taşınabilir; kullanıcı akışı değişmemelidir.
+
+Core başlangıçta cache edilmiş runtime'ı derleyip yüklemeyi dener; cache bozuksa paket içindeki `runtime.js` fallback'ine döner.
+
+`Güncelle` akışı:
+
+1. `update.json` HTTPS ile alınır.
+2. Schema ve minimum Core sürümü kontrol edilir.
+3. Yeni runtime sürümü yoksa işlem biter.
+4. Runtime kaynağı indirilir.
+5. `new Function` ile module factory olarak derlenebilirliği ve beklenen export biçimi kontrol edilir.
+6. Panel açıksa aday runtime etkinleştirilir.
+7. Başarılıysa source + version cache'e yazılır.
+8. Etkinleştirme başarısızsa önceki cache veya paket içi runtime geri yüklenir.
+9. Ağ yoksa başlangıçta cache/fallback sayesinde Runner çalışmaya devam eder.
+
+### Önemli
+
+Bu mimari kaynak seviyesinde uygulanmıştır fakat gerçek InDesign UXP ortamında bootstrap paketiyle uçtan uca test edilmeden “doğrulanmış updater” sayılmaz. Kullanıcıya son manuel paket/kurulum ancak test için hazır Core tamamlandığında yaptırılır.
+
+Normal Runner UI ve davranış değişiklikleri `runtime.js` içinde tutulmalıdır. Core/manifest değişikliği gerektiren işler istisnadır.
+
+Plugin içine GitHub PAT/token/secrets gömülmez. Public raw GitHub kaynağı kullanılır.
+
+## 5. MANIFEST 2.1.0
+
+Güncel manifest updater için:
+
+- `allowCodeGenerationFromStrings: true`
+- `localFileSystem: "plugin"`
+- `network.domains: ["https://raw.githubusercontent.com"]`
+
+içerir.
+
+`localFileSystem: "plugin"` sandbox erişimi için yeterlidir; kullanıcının genel dosya sistemine updater adına geniş erişim verilmez.
+
+## 6. RUNNER'IN İKİ JAVASCRIPT ORTAMI
 
 ### A) UXP / Core-runtime katmanı
 
-Runner'ın kendi kodu UXP JavaScript ortamında çalışır. InDesign ve UXP modülleri Core tarafından alınır. Güncellenebilir runtime mümkün olduğunca Core'un verdiği kontrollü context üzerinden çalışmalıdır.
+Runner'ın kendi kodu UXP JavaScript ortamında çalışır. Core, `indesign` modülünden `app`, `ScriptLanguage`, `UndoModes` alır ve runtime'a kontrollü context verir.
+
+Uzaktan runtime CommonJS-benzeri factory kaynağıdır. Core bunu `new Function` ile module export'a dönüştürür. Bu kullanım manifestteki `allowCodeGenerationFromStrings` iznine dayanır.
 
 ### B) Runner editöründeki InDesign kodu
 
-Editöre yapıştırılan kod InDesign'a şu mantıkla gönderilir:
+Editöre yapıştırılan kod şu mantıkla gönderilir:
 
 ```js
 app.doScript(
@@ -71,21 +107,20 @@ app.doScript(
 
 UXP panel API'leri ile `doScript` üzerinden çalışan InDesign JavaScript ortamı birbirine karıştırılmaz.
 
-## 6. GENEL SCRIPT GELİŞTİRME KURALLARI
+## 7. GENEL SCRIPT GELİŞTİRME KURALLARI
 
-- Runner editöründe çalıştırılan kod dış seviyede Runner tarafından `UndoModes.ENTIRE_SCRIPT` ile tek Undo altında tutulur. Snippet gereksiz yere tekrar ENTIRE_SCRIPT içine sarılmaz.
+- Runner editöründeki kod dış seviyede Runner tarafından `UndoModes.ENTIRE_SCRIPT` ile tek Undo altında tutulur; snippet gereksiz yere tekrar sarılmaz.
 - Kod revizyonunda kullanıcıya satır yaması yaptırmak yerine tam çalışır kod veya doğrudan repo güncellemesi tercih edilir.
-- Scriptlere otomatik son kullanma tarihi/tarih sınırı eklenmez.
+- Scriptlere otomatik son kullanma tarihi eklenmez.
 - ScriptUI/dialog sonrası kullanıcı odağı ve gerçek son insertion point korunmaya çalışılır.
-- Tablo hücresi bağlamında geçersiz story index varsayımlarından kaçınılır; hücrenin kendi `characters` / `insertionPoints` koleksiyonları dikkate alınır.
-- İnceleme/dump araçları mümkün olduğunda belgeyi değiştirmeden ayrı çıktı üretir.
-- `node --check` yalnız JavaScript sözdizimini doğrular; InDesign/UXP runtime doğrulaması olarak sunulmaz.
+- Tablo hücresi bağlamında geçersiz story index varsayımlarından kaçınılır.
+- `node --check` yalnız JavaScript sözdizimi kontrolüdür; InDesign/UXP runtime doğrulaması değildir.
 
-## 7. DOĞRULANMIŞ RUNNER ÖZELLİKLERİ
+## 8. DOĞRULANMIŞ RUNNER ÖZELLİKLERİ
 
-2.0.x hattında doğrulanmış temel davranışlar:
+2.0.x hattında gerçek InDesign kullanımında doğrulanmış temel davranışlar:
 
-- InDesign UXP paneli açılır.
+- UXP paneli açılır.
 - Kod `app.doScript` ile çalışır ve Runner seviyesinde tek Undo kullanır.
 - Ctrl+Enter çalıştırır.
 - Editör temizlenebilir.
@@ -94,24 +129,20 @@ UXP panel API'leri ile `doScript` üzerinden çalışan InDesign JavaScript orta
 - Favoriler kalıcı saklanabilir; kaydetme/yükleme/yeniden adlandırma/silme akışları bulunur.
 - İşlem sonrası InDesign odağını geri verme yaklaşımı bulunur.
 
-## 8. BOOTSTRAP HEDEFİ
-
-Updater özellikli bootstrap/Core hattı `2.1.x` olarak ele alınır. Bu hattın amacı, bir defalık manuel paket/kurulumdan sonra normal Runner geliştirmelerini `Güncelle` düğmesiyle dağıtmaktır.
-
-Bootstrap tamamlanmadan kullanıcıya son CCX'i paketlemesi söylenmez.
+2.1.0 Core/runtime updater kodu repoya uygulanmıştır; gerçek UXP bootstrap testi sıradaki aşamadır.
 
 ## 9. GELİŞTİRME OTURUMU BAŞLANGIÇ KURALI
 
 Yeni oturumda:
 
-1. Bu `BENI_OKU.md` dosyasını oku.
-2. `manifest.json`, `index.html`, `main.js` ve update/runtime dosyalarının güncel sürümlerini repodan çek.
+1. Bu dosyayı oku.
+2. `manifest.json`, `index.html`, `main.js`, `runtime.js`, `update.json` dosyalarını repodan çek.
 3. Kaynak kodu sohbet özetinden daha güncel kabul et.
-4. Özel kurum/dizgi bilgisi gerekiyorsa public repoya yazma; PRIVATE bilgi deposunu kullan.
-5. Normal geliştirmede hedefi koru: kullanıcıya paket yaptırmak yerine GitHub güncellemesi → panelde `Güncelle`.
+4. Özel kurum/dizgi bilgisini public repoya yazma.
+5. Normal geliştirmede hedefi koru: GitHub runtime güncellemesi → panelde `Güncelle`; tekrar CCX paketleme istisna olmalı.
 
 ## 10. GÜVENLİK / YAYIN KURALI
 
-Public repoya commit etmeden önce içerikte özel kurum bilgisi, kişisel erişim anahtarı, token, parola, özel belge verisi veya yalnız private bilgi deposunda bulunması gereken çalışma bilgisinin olmadığını kontrol et.
+Public repoya commit etmeden önce özel kurum bilgisi, kişisel erişim anahtarı, token, parola veya private çalışma bilgisinin bulunmadığını kontrol et.
 
 Public/private ayrımı bir dokümantasyon tercihi değil, proje kuralıdır.
